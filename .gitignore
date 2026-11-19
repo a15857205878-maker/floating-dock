@@ -1,0 +1,10 @@
+**/bin/
+**/obj/
+**/data/
+**/work/
+**/artifacts/
+app_link.json
+*.log
+*.zip
+*.user
+.vs/

@@ -55,18 +55,26 @@ public sealed class App : Application
             }
             if (!existed) DockCatalog.Merge(state, NativeServices.DesktopShortcuts());
             var window=new DockWindow(state,path);
+            bool shortcutReady = false;
+            int pendingShortcuts = showRequested ? 1 : 0;
             void ToggleDock()
             {
                 if (app.Dispatcher.HasShutdownStarted) return;
+                // Window activation and rendering may keep the dispatcher from becoming idle.
                 _ = app.Dispatcher.InvokeAsync(() =>
                 {
-                    if (app.Dispatcher.HasShutdownStarted || !window.IsLoaded) return;
-                    window.ToggleFromShortcut();
-                }, DispatcherPriority.ContextIdle);
+                    if (app.Dispatcher.HasShutdownStarted) return;
+                    if (shortcutReady) window.ToggleFromShortcut();
+                    else pendingShortcuts++;
+                }, DispatcherPriority.Normal);
             }
+            window.Loaded += (_, _) =>
+            {
+                shortcutReady = true;
+                for (; pendingShortcuts > 0; pendingShortcuts--) ToggleDock();
+                LifecycleLog.Write("window-ready job-bound="+DesktopLauncher.IsJobBound);
+            };
             using var activation=new InstanceActivation(identity,ToggleDock);
-            if(showRequested)window.Loaded+=(_,_)=>ToggleDock();
-            window.Loaded+=(_,_)=>LifecycleLog.Write("window-ready job-bound="+DesktopLauncher.IsJobBound);
             window.Closing+=(_,_)=>LifecycleLog.Write("window-closing");
             app.SessionEnding+=(_,_)=>LifecycleLog.Write("windows-session-ending");
             using var appLink = new AppLinkPresence();
